@@ -1,0 +1,42 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+
+st.set_page_config(layout="wide")
+
+st.title("📅 Team Logbook - Calendar View")
+
+# Load Excel file
+uploaded_file = st.file_uploader("Upload Team Log Excel File", type=["xlsx"])
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+
+    # Ensure date columns are proper datetime
+    df["Start Date"] = pd.to_datetime(df["Start Date"])
+    df["End Date"] = pd.to_datetime(df["End Date"])
+
+    # Create a unique ID for hover/click
+    df["Label"] = df["Project Name"] + " (" + df["Person Name"] + ")"
+
+    # Plot Gantt-style timeline
+    fig = px.timeline(
+        df,
+        x_start="Start Date",
+        x_end="End Date",
+        y="Person Name",
+        color="Project Name",
+        hover_data=["Project Name", "Person Name", "Description"]
+    )
+    fig.update_yaxes(autorange="reversed")  # Optional
+    fig.update_layout(height=600)
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("### 🔍 Project Details")
+    selected_project = st.selectbox("Select a project to view more details", df["Project Name"].unique())
+
+    # Show filtered details
+    st.dataframe(df[df["Project Name"] == selected_project][["Person Name", "Start Date", "End Date", "Description"]])
+
+else:
+    st.info("Please upload an Excel file with log data.")
