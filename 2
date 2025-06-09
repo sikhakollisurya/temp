@@ -1,0 +1,57 @@
+import streamlit as st
+import pandas as pd
+from streamlit_calendar import calendar
+from datetime import datetime
+
+st.set_page_config(layout="wide")
+st.title("📅 Team Logbook Calendar View")
+
+# Upload the Excel file
+uploaded_file = st.file_uploader("Upload Logbook Excel File", type=["xlsx"])
+
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+    
+    # Ensure datetime conversion
+    df["Start Date"] = pd.to_datetime(df["Start Date"])
+    df["End Date"] = pd.to_datetime(df["End Date"])
+
+    # Convert each row into a calendar event
+    events = []
+    for _, row in df.iterrows():
+        event = {
+            "title": f"{row['Project Name']} ({row['Person Name']})",
+            "start": row["Start Date"].strftime("%Y-%m-%d"),
+            "end": (row["End Date"] + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),  # FullCalendar's `end` is exclusive
+            "extendedProps": {
+                "Description": row["Description"],
+                "Person": row["Person Name"]
+            }
+        }
+        events.append(event)
+
+    # Show calendar
+    calendar_options = {
+        "initialView": "dayGridMonth",
+        "height": 650,
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+            "right": "dayGridMonth,timeGridWeek,listWeek"
+        }
+    }
+
+    selected_event = calendar(events=events, options=calendar_options)
+
+    # Show details of clicked event
+    if selected_event:
+        st.markdown("### 📝 Selected Event Details")
+        st.write(f"**Title**: {selected_event['event']['title']}")
+        props = selected_event['event'].get("extendedProps", {})
+        st.write(f"**Person**: {props.get('Person', 'N/A')}")
+        st.write(f"**Description**: {props.get('Description', 'N/A')}")
+        st.write(f"**Start**: {selected_event['event']['start']}")
+        st.write(f"**End**: {selected_event['event']['end']}")
+
+else:
+    st.info("Please upload an Excel file with log entries.")
