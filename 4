@@ -1,0 +1,110 @@
+import streamlit as st
+import pandas as pd
+from datetime import timedelta
+from streamlit_calendar import calendar
+
+st.set_page_config(layout="wide")
+st.title("📅 Team Logbook – Weekly Calendar View")
+
+uploaded_file = st.file_uploader("Upload Logbook Excel File", type=["xlsx"])
+
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+    df["Start Date"] = pd.to_datetime(df["Start Date"])
+    df["End Date"] = pd.to_datetime(df["End Date"])
+
+    # Sidebar Filters
+    st.sidebar.header("🔍 Filter Options")
+    unique_projects = df["Project Name"].dropna().unique()
+    unique_persons = df["Person Name"].dropna().unique()
+
+    selected_projects = st.sidebar.multiselect("Project Name", unique_projects, default=unique_projects)
+    selected_persons = st.sidebar.multiselect("Person Name", unique_persons, default=unique_persons)
+
+    df = df[
+        df["Project Name"].isin(selected_projects) &
+        df["Person Name"].isin(selected_persons)
+    ].copy()
+
+    # --- Expand rows week-wise ---
+    split_rows = []
+    for _, row in df.iterrows():
+        start = row["Start Date"]
+        end = row["End Date"]
+        current = start
+
+        while current <= end:
+            week_start = current - timedelta(days=current.weekday())  # Monday
+            week_end = week_start + timedelta(days=6)  # Sunday
+
+            # Clamp start and end to within the week
+            clamped_start = max(start, week_start)
+            clamped_end = min(end, week_end)
+
+            split_rows.append({
+                "Project Name": row["Project Name"],
+                "Person Name": row["Person Name"],
+                "Description": row["Description"],
+                "Week Start": week_start,
+                "Start Date": clamped_start,
+                "End Date": clamped_end
+            })
+
+            current = week_end + timedelta(days=1)
+
+    split_df = pd.DataFrame(split_rows)
+
+    # --- Group by Project and Week ---
+    grouped = (
+        split_df
+        .groupby(["Project Name", "Week Start"])
+        .agg({
+            "Start Date": "min",
+            "End Date": "max",
+            "Person Name": lambda x: ', '.join(sorted(set(x))),
+            "Description": lambda x: '; '.join(sorted(set(x)))
+        })
+        .reset_index()
+    )
+
+    # --- Create Calendar Events ---
+    events = []
+    for _, row in grouped.iterrows():
+        events.append({
+            "title": f"{row['Project Name']} ({row['Person Name']})",
+            "start": row["Start Date"].strftime("%Y-%m-%d"),
+            "end": (row["End Date"] + timedelta(days=1)).strftime("%Y-%m-%d"),
+            "extendedProps": {
+                "Project": row["Project Name"],
+                "Persons": row["Person Name"],
+                "Description": row["Description"],
+                "Week Start": row["Week Start"].strftime("%Y-%m-%d")
+            }
+        })
+
+    # --- Display the Calendar ---
+    calendar_options = {
+        "initialView": "dayGridMonth",
+        "height": 650,
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+            "right": "dayGridMonth,timeGridWeek,listWeek"
+        }
+    }
+
+    selected_event = calendar(events=events, options=calendar_options)
+
+    if selected_event and "event" in selected_event:
+        st.markdown("### 📝 Selected Event Details")
+        evt = selected_event["event"]
+        props = evt.get("extendedProps", {})
+        st.write(f"**Project**: {props.get('Project')}")
+        st.write(f"**Week Starting**: {props.get('Week Start')}")
+        st.write(f"**Persons**: {props.get('Persons')}")
+        st.write(f"**Description**: {props.get('Description')}")
+        st.write(f"**Start**: {evt.get('start')}")
+        st.write(f"**End**: {evt.get('end')}")
+
+else:
+    st.info("📂 Upload an Excel file with logbook data to get started.")
