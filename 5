@@ -1,0 +1,44 @@
+import streamlit as st
+from streamlit_calendar import calendar
+import pandas as pd
+from datetime import datetime, timedelta
+
+# Sample DataFrame
+df = pd.DataFrame({
+    'Project': ['Alpha', 'Beta', 'Alpha'],
+    'Category': ['Design', 'Development', 'Testing'],
+    'Start': pd.to_datetime(['2025-06-03', '2025-06-10', '2025-06-17']),
+    'End': pd.to_datetime(['2025-06-14', '2025-06-21', '2025-06-25'])
+})
+
+# Generate color palette
+project_colors = {
+    'Alpha': '#FF5733',
+    'Beta': '#3375FF'
+}
+
+# Prepare calendar events
+events = []
+for _, row in df.iterrows():
+    current = row['Start']
+    while current <= row['End']:
+        if current.weekday() < 5:  # Weekdays only
+            events.append({
+                "title": row['Category'],
+                "start": current.strftime("%Y-%m-%d"),
+                "end": (current + timedelta(days=1)).strftime("%Y-%m-%d"),  # fullcalendar needs exclusive end
+                "color": project_colors[row['Project']],
+            })
+        current += timedelta(days=1)
+
+# Calendar settings
+calendar_options = {
+    "initialView": "timeGridWeek",
+    "hiddenDays": [0, 6],  # Hide Sunday (0) and Saturday (6)
+    "slotMinTime": "08:00:00",
+    "slotMaxTime": "18:00:00",
+    "allDaySlot": False,
+    "height": "auto"
+}
+
+calendar(events=events, options=calendar_options)
